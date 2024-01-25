@@ -189,7 +189,7 @@ fun BillForm(
                     )
                     Spacer(modifier = modifier.width(120.dp))
                     Row(
-                        modifier = modifier.p adding(horizontal = 3.dp),
+                        modifier = modifier.padding(horizontal = 3.dp),
                         horizontalArrangement = Arrangement.End
                     ) {
                         RoundedIconButton(
