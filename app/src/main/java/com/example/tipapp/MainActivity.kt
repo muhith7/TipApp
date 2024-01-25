@@ -30,6 +30,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -44,6 +45,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.tipapp.components.InputField
 import com.example.tipapp.ui.theme.TipAppTheme
+import com.example.tipapp.util.calculateTotalPerPerson
+import com.example.tipapp.util.calculateTotalTip
 import com.example.tipapp.widgets.RoundedIconButton
 
 class MainActivity : ComponentActivity() {
@@ -104,18 +107,35 @@ fun TopHeader(totalPerPerson: Double = 0.0) {
 @Preview
 @Composable
 fun MainConten() {
-    BillForm() { billAmt ->
-        Log.d("AMT", "MainConten: $billAmt")
+    val splitByState = remember {
+        mutableStateOf(1)
     }
+    val range = IntRange(start = 1, endInclusive = 100)
+
+    val tipAmountState = remember {
+        mutableStateOf(0.0)
+    }
+    val totalPerPersonState = remember {
+        mutableStateOf(0.0)
+    }
+    BillForm(splitByState = splitByState,
+        tipAmountState = tipAmountState,
+        totalPerPersonState = totalPerPersonState,
+        range = range) {}
 }
+
 @ExperimentalComposeUiApi
 @Composable
 fun BillForm(
     modifier: Modifier = Modifier,
+    range: IntRange = 1..100,
+    splitByState: MutableState<Int>,
+    tipAmountState: MutableState<Double>,
+    totalPerPersonState: MutableState<Double>,
     onValChange: (String) -> Unit = {}
 ) {
     val totalBillState = remember {
-        mutableStateOf("9")
+        mutableStateOf("")
     }
     val validState = remember(totalBillState.value) {
         totalBillState.value.trim().isNotEmpty()
@@ -126,19 +146,24 @@ fun BillForm(
     val sliderPositionState = remember {
         mutableStateOf(0f)
     }
-    Column (modifier = Modifier
-        .padding(2.dp)
-        .fillMaxWidth()){
-        TopHeader()
+    val tipPrecentage = (sliderPositionState.value * 100).toInt()
+
+
+    Column(
+        modifier = modifier
+            .padding(2.dp)
+            .fillMaxWidth()
+    ) {
+        TopHeader(totalPerPerson = totalPerPersonState.value)
         Surface(
-            modifier = Modifier
+            modifier = modifier
                 .padding(2.dp)
                 .fillMaxWidth(),
             shape = RoundedCornerShape(corner = CornerSize(8.dp)),
             border = BorderStroke(width = 1.dp, color = Color.LightGray)
         ) {
             Column(
-                modifier = Modifier.padding(6.dp),
+                modifier = modifier.padding(6.dp),
                 verticalArrangement = Arrangement.Top,
                 horizontalAlignment = Alignment.Start
             ) {
@@ -151,28 +176,37 @@ fun BillForm(
                         onValChange(totalBillState.value.trim())
                         keyboardController?.hide()
                     })
-//            if (validState) {
+            if (validState) {
                 Row(
-                    modifier = Modifier.padding(3.dp),
+                    modifier = modifier.padding(3.dp),
                     horizontalArrangement = Arrangement.Start
                 ) {
                     Text(
                         text = "Split",
-                        modifier = Modifier.align(
+                        modifier = modifier.align(
                             alignment = Alignment.CenterVertically
                         )
                     )
-                    Spacer(modifier = Modifier.width(120.dp))
+                    Spacer(modifier = modifier.width(120.dp))
                     Row(
-                        modifier = Modifier.padding(horizontal = 3.dp),
+                        modifier = modifier.p adding(horizontal = 3.dp),
                         horizontalArrangement = Arrangement.End
                     ) {
                         RoundedIconButton(
                             imageVector = Icons.Default.Remove,
-                            onClick = { Log.d("icon", "BillForm: Remove") })
+                            onClick = {
+                                splitByState.value =
+                                    if (splitByState.value > 1) splitByState.value - 1 else 1
+                                totalPerPersonState.value =
+                                    calculateTotalPerPerson(
+                                        totalBill = totalBillState.value.toDouble(),
+                                        splitBy = splitByState.value,
+                                        tipPerecentage = tipPrecentage
+                                    )
+                            })
 
                         Text(
-                            text = "2",
+                            text = "${splitByState.value}",
                             modifier = Modifier
                                 .align(Alignment.CenterVertically)
                                 .padding(start = 9.dp, end = 9.dp)
@@ -180,7 +214,17 @@ fun BillForm(
 
                         RoundedIconButton(
                             imageVector = Icons.Default.Add,
-                            onClick = { Log.d("icon", "BillForm: Add") })
+                            onClick = {
+                                if (splitByState.value < range.last) {
+                                    splitByState.value = splitByState.value + 1
+                                    totalPerPersonState.value =
+                                        calculateTotalPerPerson(
+                                            totalBill = totalBillState.value.toDouble(),
+                                            splitBy = splitByState.value,
+                                            tipPerecentage = tipPrecentage
+                                        )
+                                }
+                            })
                     }
                 }
                 //Tip Row
@@ -195,7 +239,7 @@ fun BillForm(
                     Spacer(modifier = Modifier.width(200.dp))
 
                     Text(
-                        text = "$33.00",
+                        text = "$ ${tipAmountState.value}",
                         modifier = Modifier.align(alignment = Alignment.CenterVertically)
                     )
                 }
@@ -203,28 +247,39 @@ fun BillForm(
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(text = "33%")
+                    Text(text = "$tipPrecentage %")
 
                     Spacer(modifier = Modifier.height(14.dp))
 
                     //Slider
 
-                    Slider(value = sliderPositionState.value , onValueChange = { newVal ->
+                    Slider(value = sliderPositionState.value, onValueChange = { newVal ->
                         sliderPositionState.value = newVal
-                        Log.d("Slider", "BillForm: $newVal")
+                        tipAmountState.value =
+                            calculateTotalTip(
+                                totalBill = totalBillState.value.toDouble(),
+                                tipPrecentage = tipPrecentage
+                            )
+                        totalPerPersonState.value =
+                            calculateTotalPerPerson(
+                                totalBill = totalBillState.value.toDouble(),
+                                splitBy = splitByState.value,
+                                tipPerecentage = tipPrecentage
+                            )
                     },
-                        modifier = Modifier.padding(start = 16.dp,
-                            end = 16.dp),
-                        steps = 5,
+                        modifier = Modifier.padding(
+                            start = 16.dp,
+                            end = 16.dp
+                        ),
                         onValueChangeFinished = {
 
                         })
                 }
-//            } else {
-//                Box {
-//
-////                }
-//            }
+            } else {
+                Box {
+
+                }
+            }
             }
         }
     }
